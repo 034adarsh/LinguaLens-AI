@@ -12,9 +12,13 @@ import openpyxl
 import docx
 import csv
 import logging
+import traceback
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with more detailed format
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
@@ -30,6 +34,15 @@ app.add_middleware(
 
 # Create output directory if not exists
 os.makedirs("translated_files", exist_ok=True)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global error handler caught: {str(exc)}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
 
 # Detect file type
 
@@ -179,12 +192,20 @@ def save_translated_excel(output_path, translated_cells):
 
 @app.get("/", response_class=JSONResponse)
 async def read_root():
-    return {"message": "LinguaLens Translation API is running", "status": "healthy"}
+    try:
+        logger.info("Root endpoint called")
+        return {"message": "LinguaLens Translation API is running", "status": "healthy"}
+    except Exception as e:
+        logger.error(f"Error in root endpoint: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_format: str = "txt"):
     try:
+        logger.info(f"Upload endpoint called with file: {file.filename}, src_lang: {src_lang}, tgt_lang: {tgt_lang}")
+        
         if not file.filename or not isinstance(file.filename, str):
             raise HTTPException(status_code=400, detail="Uploaded file must have a valid filename.")
         
@@ -194,6 +215,8 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
         
         try:
             extension = detect_file_type(file_path)
+            logger.info(f"Detected file type: {extension}")
+            
             if extension == ".xlsx":
                 cells = extract_excel_cells(file_path)
                 translated_cells = translate_excel_cells(cells, src_lang, tgt_lang)
@@ -229,14 +252,17 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
                 output_path = os.path.join("translated_files", output_filename)
                 save_translated_file(output_path, translated_text, output_format)
 
+            logger.info(f"File processed successfully. Output: {output_filename}")
             return {"message": "File translated successfully!", "download_url": f"/download/{output_filename}"}
 
         except Exception as e:
             logger.error(f"Error processing file: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
     except Exception as e:
         logger.error(f"Error in upload_file: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
@@ -247,15 +273,23 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
 @app.get("/download/{filename}")
 async def download_file(filename: str):
     try:
+        logger.info(f"Download endpoint called for file: {filename}")
         file_path = os.path.join("translated_files", filename)
         if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
             raise HTTPException(status_code=404, detail="File not found")
         return FileResponse(file_path, filename=filename)
     except Exception as e:
         logger.error(f"Error in download_file: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Add a health check endpoint
 @app.get("/health", response_class=JSONResponse)
 async def health_check():
-    return {"status": "healthy", "message": "API is operational"}
+    try:
+        logger.info("Health check endpoint called")
+        return {"status": "healthy", "message": "API is operational"}
+    except Exception as e:
+        logger.error(f"Error in health check: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
