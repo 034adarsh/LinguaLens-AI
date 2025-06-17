@@ -7,3 +7,4 @@ PyMuPDF
 jinja2
 reportlab
 pandas 
+python-multipart
