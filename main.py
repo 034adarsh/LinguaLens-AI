@@ -1,6 +1,5 @@
 from fastapi import FastAPI, UploadFile, Request, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
@@ -28,8 +27,6 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
-templates = Jinja2Templates(directory="templates")
 
 # Create output directory if not exists
 os.makedirs("translated_files", exist_ok=True)
@@ -180,9 +177,9 @@ def save_translated_excel(output_path, translated_cells):
 
 # Routes
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/")
+async def read_root():
+    return {"message": "LinguaLens Translation API is running"}
 
 
 @app.post("/upload/")
