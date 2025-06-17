@@ -9,3 +9,5 @@ reportlab
 pandas 
 python-multipart
 sentencepiece
+torch
+sacremoses
