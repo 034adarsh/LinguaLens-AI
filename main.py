@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Request
+from fastapi import FastAPI, UploadFile, Request, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,15 +12,20 @@ from transformers import MarianMTModel, MarianTokenizer
 import csv
 from io import StringIO
 from reportlab.pdfgen import canvas
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
-# Allow CORS
+# Allow CORS with specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with your frontend URL in production
+    allow_origins=["https://lingualens.vercel.app", "http://localhost:3000"],  # Add your frontend URLs
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -182,52 +187,60 @@ async def read_root(request: Request):
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_format: str = "txt"):
-    if not file.filename or not isinstance(file.filename, str):
-        return JSONResponse(status_code=400, content={"error": "Uploaded file must have a valid filename."})
-    file_path = f"temp_{file.filename}"
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
     try:
-        extension = detect_file_type(file_path)
-        if extension == ".xlsx":
-            cells = extract_excel_cells(file_path)
-            translated_cells = translate_excel_cells(cells, src_lang, tgt_lang)
-            output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.xlsx"
-            output_path = os.path.join("translated_files", output_filename)
-            save_translated_excel(output_path, translated_cells)
-        elif extension == ".csv":
-            # Read CSV, translate each cell, and save as CSV or XLSX
-            with open(file_path, "r", encoding="utf-8") as f:
-                reader = list(csv.reader(f))
-            translated_cells = translate_excel_cells(reader, src_lang, tgt_lang)
-            if output_format == "xlsx":
+        if not file.filename or not isinstance(file.filename, str):
+            raise HTTPException(status_code=400, detail="Uploaded file must have a valid filename.")
+        
+        file_path = f"temp_{file.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        try:
+            extension = detect_file_type(file_path)
+            if extension == ".xlsx":
+                cells = extract_excel_cells(file_path)
+                translated_cells = translate_excel_cells(cells, src_lang, tgt_lang)
                 output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.xlsx"
                 output_path = os.path.join("translated_files", output_filename)
                 save_translated_excel(output_path, translated_cells)
-            elif output_format == "csv":
-                output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.csv"
-                output_path = os.path.join("translated_files", output_filename)
-                with open(output_path, "w", encoding="utf-8", newline="") as f:
-                    writer = csv.writer(f)
-                    for row in translated_cells:
-                        writer.writerow(row)
+            elif extension == ".csv":
+                # Read CSV, translate each cell, and save as CSV or XLSX
+                with open(file_path, "r", encoding="utf-8") as f:
+                    reader = list(csv.reader(f))
+                translated_cells = translate_excel_cells(reader, src_lang, tgt_lang)
+                if output_format == "xlsx":
+                    output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.xlsx"
+                    output_path = os.path.join("translated_files", output_filename)
+                    save_translated_excel(output_path, translated_cells)
+                elif output_format == "csv":
+                    output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.csv"
+                    output_path = os.path.join("translated_files", output_filename)
+                    with open(output_path, "w", encoding="utf-8", newline="") as f:
+                        writer = csv.writer(f)
+                        for row in translated_cells:
+                            writer.writerow(row)
+                else:
+                    # For txt, docx, pdf: flatten to text
+                    flat_text = "\n".join([", ".join(map(str, row)) for row in translated_cells])
+                    output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.{output_format}"
+                    output_path = os.path.join("translated_files", output_filename)
+                    save_translated_file(output_path, flat_text, output_format)
             else:
-                # For txt, docx, pdf: flatten to text
-                flat_text = "\n".join([", ".join(map(str, row)) for row in translated_cells])
+                text = extract_text(file_path)
+                translated_text = translate_text(text, src_lang, tgt_lang)
                 output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.{output_format}"
                 output_path = os.path.join("translated_files", output_filename)
-                save_translated_file(output_path, flat_text, output_format)
-        else:
-            text = extract_text(file_path)
-            translated_text = translate_text(text, src_lang, tgt_lang)
-            output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.{output_format}"
-            output_path = os.path.join("translated_files", output_filename)
-            save_translated_file(output_path, translated_text, output_format)
+                save_translated_file(output_path, translated_text, output_format)
 
-        return {"message": "File translated successfully!", "download_url": f"/download/{output_filename}"}
+            return {"message": "File translated successfully!", "download_url": f"/download/{output_filename}"}
+
+        except Exception as e:
+            logger.error(f"Error processing file: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        logger.error(f"Error in upload_file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         if os.path.exists(file_path):
@@ -236,7 +249,16 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    file_path = os.path.join("translated_files", filename)
-    if os.path.exists(file_path):
+    try:
+        file_path = os.path.join("translated_files", filename)
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
         return FileResponse(file_path, filename=filename)
-    return JSONResponse(status_code=404, content={"error": "File not found"})
+    except Exception as e:
+        logger.error(f"Error in download_file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Add a health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
