@@ -22,7 +22,7 @@ app = FastAPI()
 # Allow CORS with specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://lingualens.vercel.app", "http://localhost:3000"],  # Add your frontend URLs
+    allow_origins=["https://v0-lingua-lens.vercel.app"],  # Add your frontend URLs
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
