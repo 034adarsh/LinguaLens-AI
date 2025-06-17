@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-docx
+openpyxl
+transformers
+PyMuPDF
+jinja2
+reportlab
+pandas 
