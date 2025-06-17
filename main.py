@@ -1,16 +1,16 @@
 from fastapi import FastAPI, UploadFile, Request, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-import shutil
-import os
-import mimetypes
-import fitz  # PyMuPDF
-import docx
-import openpyxl
-from transformers import MarianMTModel, MarianTokenizer
-import csv
 from io import StringIO
 from reportlab.pdfgen import canvas
+from transformers import MarianMTModel, MarianTokenizer
+import os
+import shutil
+import fitz  # PyMuPDF
+import mimetypes
+import openpyxl
+import docx
+import csv
 import logging
 
 # Configure logging
