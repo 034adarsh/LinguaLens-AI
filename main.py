@@ -22,7 +22,7 @@ app = FastAPI()
 # Allow CORS with specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://v0-lingua-lens.vercel.app"],  # Add your frontend URLs
+    allow_origins=["https://v0-lingua-lens.vercel.app"],  # Only allow your frontend domain
     allow_credentials=True,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
@@ -177,9 +177,9 @@ def save_translated_excel(output_path, translated_cells):
 
 # Routes
 
-@app.get("/")
+@app.get("/", response_class=JSONResponse)
 async def read_root():
-    return {"message": "LinguaLens Translation API is running"}
+    return {"message": "LinguaLens Translation API is running", "status": "healthy"}
 
 
 @app.post("/upload/")
@@ -256,6 +256,6 @@ async def download_file(filename: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 # Add a health check endpoint
-@app.get("/health")
+@app.get("/health", response_class=JSONResponse)
 async def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "message": "API is operational"}
