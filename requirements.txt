@@ -1,13 +1,10 @@
-fastapi
-uvicorn
+streamlit
 python-docx
 openpyxl
 transformers
-PyMuPDF
-jinja2
+pymupdf
 reportlab
-pandas 
-python-multipart
-sentencepiece
 torch
 sacremoses
+sentencepiece
+pandas
