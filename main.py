@@ -12,14 +12,25 @@ import openpyxl
 import docx
 import csv
 import logging
+import sys
 import traceback
 
-# Configure logging with more detailed format
+# Configure logging to use stdout explicitly
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+    force=True
 )
 logger = logging.getLogger(__name__)
+
+# Force all handlers to use stdout
+for handler in logger.handlers:
+    handler.setStream(sys.stdout)
+
+# Log startup message
+print("Starting LinguaLens Translation API")  # Using print for immediate visibility
+logger.info("Starting LinguaLens Translation API")
 
 app = FastAPI()
 
@@ -34,6 +45,8 @@ app.add_middleware(
 
 # Create output directory if not exists
 os.makedirs("translated_files", exist_ok=True)
+print("Created translated_files directory")  # Using print for immediate visibility
+logger.info("Created translated_files directory")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -207,9 +220,12 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
         logger.info(f"Upload endpoint called with file: {file.filename}, src_lang: {src_lang}, tgt_lang: {tgt_lang}")
         
         if not file.filename or not isinstance(file.filename, str):
+            logger.error("Invalid filename provided")
             raise HTTPException(status_code=400, detail="Uploaded file must have a valid filename.")
         
         file_path = f"temp_{file.filename}"
+        logger.info(f"Creating temporary file: {file_path}")
+        
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
@@ -218,12 +234,14 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
             logger.info(f"Detected file type: {extension}")
             
             if extension == ".xlsx":
+                logger.info("Processing Excel file")
                 cells = extract_excel_cells(file_path)
                 translated_cells = translate_excel_cells(cells, src_lang, tgt_lang)
                 output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.xlsx"
                 output_path = os.path.join("translated_files", output_filename)
                 save_translated_excel(output_path, translated_cells)
             elif extension == ".csv":
+                logger.info("Processing CSV file")
                 # Read CSV, translate each cell, and save as CSV or XLSX
                 with open(file_path, "r", encoding="utf-8") as f:
                     reader = list(csv.reader(f))
@@ -246,6 +264,7 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
                     output_path = os.path.join("translated_files", output_filename)
                     save_translated_file(output_path, flat_text, output_format)
             else:
+                logger.info("Processing text file")
                 text = extract_text(file_path)
                 translated_text = translate_text(text, src_lang, tgt_lang)
                 output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.{output_format}"
@@ -267,6 +286,7 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
 
     finally:
         if os.path.exists(file_path):
+            logger.info(f"Cleaning up temporary file: {file_path}")
             os.remove(file_path)
 
 
