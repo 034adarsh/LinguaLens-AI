@@ -1,5 +1,11 @@
 streamlit==1.39.0
-googletrans==4.0.0-rc1
+deep-translator==1.11.4
 PyPDF2==3.0.1
 pandas==2.2.3
 openpyxl==3.1.5
+toml==0.10.2
+tornado==6.5.1
+typing-extensions==4.14.0
+tzdata==2025.2
+urllib3==2.5.0
+watchdog==5.0.3
