@@ -7,3 +7,4 @@ reportlab
 torch
 sacremoses
 pandas
+sentencepiece
