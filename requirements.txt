@@ -6,5 +6,4 @@ pymupdf
 reportlab
 torch
 sacremoses
-sentencepiece==0.1.99
 pandas
