@@ -285,4 +285,8 @@ if st.button("Translate"):
 
 # Footer
 st.markdown("---")
-st.markdown("Powered by LinguaLens Translation")
+st.markdown("### Powered by LinguaLens AI")
+st.markdown(
+    "Built by **Adarsh Singh** | [Email](mailto:adarsh36jnp@gmail.com) | "
+    "[LinkedIn](https://www.linkedin.com/in/adarsh-kumar-singh-data/)"
+)

@@ -1,11 +1,14 @@
 Cmake
 streamlit
 python-docx
+setuptools
+wheel
 openpyxl
 transformers
 pymupdf
 reportlab
 torch
+Cmake
 sacremoses
 pandas
 sentencepiece
