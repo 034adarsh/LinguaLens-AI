@@ -24,10 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Force all handlers to use stdout
-for handler in logger.handlers:
-    handler.setStream(sys.stdout)
-
 # Log startup message
 print("Starting LinguaLens Translation API")  # Using print for immediate visibility
 logger.info("Starting LinguaLens Translation API")
@@ -228,48 +224,67 @@ async def upload_file(file: UploadFile, src_lang: str, tgt_lang: str, output_for
         
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        logger.info(f"Temporary file created: {file_path}")
         
         try:
             extension = detect_file_type(file_path)
             logger.info(f"Detected file type: {extension}")
             
             if extension == ".xlsx":
-                logger.info("Processing Excel file")
+                logger.info("Processing Excel file: extracting cells")
                 cells = extract_excel_cells(file_path)
+                logger.info(f"Extracted {len(cells)} rows from Excel file")
+                logger.info("Translating Excel cells")
                 translated_cells = translate_excel_cells(cells, src_lang, tgt_lang)
+                logger.info("Translation of Excel cells complete")
                 output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.xlsx"
                 output_path = os.path.join("translated_files", output_filename)
+                logger.info(f"Saving translated Excel to {output_path}")
                 save_translated_excel(output_path, translated_cells)
+                logger.info(f"Saved translated Excel to {output_path}")
             elif extension == ".csv":
-                logger.info("Processing CSV file")
-                # Read CSV, translate each cell, and save as CSV or XLSX
+                logger.info("Processing CSV file: reading rows")
                 with open(file_path, "r", encoding="utf-8") as f:
                     reader = list(csv.reader(f))
+                logger.info(f"Read {len(reader)} rows from CSV file")
+                logger.info("Translating CSV cells")
                 translated_cells = translate_excel_cells(reader, src_lang, tgt_lang)
+                logger.info("Translation of CSV cells complete")
                 if output_format == "xlsx":
                     output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.xlsx"
                     output_path = os.path.join("translated_files", output_filename)
+                    logger.info(f"Saving translated Excel to {output_path}")
                     save_translated_excel(output_path, translated_cells)
+                    logger.info(f"Saved translated Excel to {output_path}")
                 elif output_format == "csv":
                     output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.csv"
                     output_path = os.path.join("translated_files", output_filename)
+                    logger.info(f"Saving translated CSV to {output_path}")
                     with open(output_path, "w", encoding="utf-8", newline="") as f:
                         writer = csv.writer(f)
                         for row in translated_cells:
                             writer.writerow(row)
+                    logger.info(f"Saved translated CSV to {output_path}")
                 else:
-                    # For txt, docx, pdf: flatten to text
+                    logger.info("Flattening translated CSV to text")
                     flat_text = "\n".join([", ".join(map(str, row)) for row in translated_cells])
                     output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.{output_format}"
                     output_path = os.path.join("translated_files", output_filename)
+                    logger.info(f"Saving flattened text to {output_path}")
                     save_translated_file(output_path, flat_text, output_format)
+                    logger.info(f"Saved flattened text to {output_path}")
             else:
-                logger.info("Processing text file")
+                logger.info("Processing text file: extracting text")
                 text = extract_text(file_path)
+                logger.info(f"Extracted text of length {len(text)}")
+                logger.info("Translating text")
                 translated_text = translate_text(text, src_lang, tgt_lang)
+                logger.info("Translation of text complete")
                 output_filename = f"{os.path.splitext(str(file.filename))[0]}_translated.{output_format}"
                 output_path = os.path.join("translated_files", output_filename)
+                logger.info(f"Saving translated file to {output_path}")
                 save_translated_file(output_path, translated_text, output_format)
+                logger.info(f"Saved translated file to {output_path}")
 
             logger.info(f"File processed successfully. Output: {output_filename}")
             return {"message": "File translated successfully!", "download_url": f"/download/{output_filename}"}
