@@ -118,7 +118,7 @@ def extract_excel_cells(file_path):
         raise ValueError("Could not get active sheet from workbook")
     return [list(row) for row in sheet.iter_rows(values_only=True)]
 
-@st.cache(allow_output_mutation=True)
+@st.cache_resource
 def load_model_and_tokenizer(src_lang, tgt_lang):
     model_name = f"Helsinki-NLP/opus-mt-{src_lang}-{tgt_lang}"
     tokenizer = MarianTokenizer.from_pretrained(model_name)
