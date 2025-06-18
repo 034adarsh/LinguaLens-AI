@@ -12,3 +12,4 @@ Cmake
 sacremoses
 pandas
 sentencepiece
+gradio
