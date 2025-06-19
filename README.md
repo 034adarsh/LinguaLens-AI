@@ -4,8 +4,7 @@ Welcome to **LinguaLens AI Translator**, a powerful and user-friendly web applic
 
 [**Try it Live! 🚀**](https://lingualens-ai.streamlit.app/)
 
-![LinguaLens AI Translator Preview](lingualens-ui.png)  
-*(Note: Replace `lingualens-ui.png` with the actual file name after uploading your UI screenshot!)*
+![LinguaLens AI Translator Preview](APP-UI.png)
 
 ---
 
