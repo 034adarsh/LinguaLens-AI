@@ -123,8 +123,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# File uploader
-file = st.file_uploader("", type=["txt", "pdf", "xlsx", "csv"], label_visibility="collapsed")
+# File uploader with fixed label
+file = st.file_uploader("Upload File", type=["txt", "pdf", "xlsx", "csv"], label_visibility="collapsed")
 MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB in bytes
 
 # Language selection
@@ -160,77 +160,95 @@ def translate_text(text, translator, max_retries=3):
                         translated += translator.translate(chunk)
                         break
                     except Exception as e:
-                        if attempt == max_retries - 1:
-                            st.warning(f"Translation failed for chunk: {str(e)}. Returning original text.")
-                            return text
-                        time.sleep(1)
+                        st.warning(f"Translation failed for chunk: {str(e)}. Returning original text.")
+                        return text
+                    time.sleep(1)
             return translated
         for attempt in range(max_retries):
             try:
                 return translator.translate(text)
             except Exception as e:
-                if attempt == max_retries - 1:
-                    st.warning(f"Translation failed: {str(e)}. Returning original text.")
-                    return text
-                time.sleep(1)
+                st.warning(f"Translation failed: {str(e)}. Returning original text.")
+                return text
+            time.sleep(1)
     except Exception as e:
         st.warning(f"Unexpected translation error: {str(e)}. Returning original text.")
         return text
 
-# File processing functions
+# Improved file processing functions
 def process_txt(file):
-    content = file.read().decode("utf-8")
-    translated = translate_text(content, translator)
-    return translated.encode("utf-8")
+    try:
+        content = file.read().decode("utf-8", errors="ignore")
+        translated = translate_text(content, translator)
+        return translated.encode("utf-8")
+    except UnicodeDecodeError:
+        st.error("Unable to decode text file. Please ensure it’s a valid UTF-8 encoded file.")
+        return None
 
 def process_pdf(file):
-    pdf_reader = PyPDF2.PdfReader(file)
-    text = ""
-    for page in pdf_reader.pages:
-        page_text = page.extract_text()
-        if page_text:
+    try:
+        pdf_reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page_num, page in enumerate(pdf_reader.pages, 1):
+            page_text = page.extract_text() or ""
+            if not page_text.strip():
+                st.warning(f"Page {page_num} contains unextractable text (e.g., scanned images or formatting).")
             text += page_text + "\n"
-        else:
-            st.warning("Some PDF pages contain unextractable text (e.g., scanned images).")
-    if not text.strip():
-        st.error("No extractable text found in PDF.")
+        if not text.strip():
+            st.error("No extractable text found in PDF.")
+            return None
+        translated = translate_text(text, translator)
+        return translated.encode("utf-8")
+    except Exception as e:
+        st.error(f"Error processing PDF: {str(e)}")
         return None
-    translated = translate_text(text, translator)
-    return translated.encode("utf-8")
 
 def process_excel(file):
-    df = pd.read_excel(file)
-    if df.empty:
-        st.error("Excel file is empty.")
+    try:
+        df = pd.read_excel(file)
+        if df.empty:
+            st.error("Excel file is empty.")
+            return None
+        batch_size = 100
+        for col in df.columns:  # Process all columns, not just object types
+            for i in range(0, len(df), batch_size):
+                start_idx = i
+                end_idx = min(i + batch_size, len(df))
+                batch = df[col][start_idx:end_idx]
+                # Convert to string for translation, preserve non-string types
+                df.loc[start_idx:end_idx - 1, col] = batch.apply(
+                    lambda x: translate_text(str(x), translator) if pd.notnull(x) and isinstance(x, str) else x
+                )
+        output = BytesIO()
+        df.to_excel(output, index=False)
+        return output.getvalue()
+    except Exception as e:
+        st.error(f"Error processing Excel: {str(e)}")
         return None
-    batch_size = 100
-    for col in df.select_dtypes(include=["object"]).columns:
-        for i in range(0, len(df), batch_size):
-            batch = df[col][i:i+batch_size]
-            df[col][i:i+batch_size] = batch.apply(
-                lambda x: translate_text(str(x), translator) if pd.notnull(x) else x
-            )
-    output = BytesIO()
-    df.to_excel(output, index=False)
-    return output.getvalue()
 
 def process_csv(file):
-    df = pd.read_csv(file)
-    if df.empty:
-        st.error("CSV file is empty.")
+    try:
+        df = pd.read_csv(file)
+        if df.empty:
+            st.error("CSV file is empty.")
+            return None
+        batch_size = 100
+        for col in df.columns:  # Process all columns
+            for i in range(0, len(df), batch_size):
+                start_idx = i
+                end_idx = min(i + batch_size, len(df))
+                batch = df[col][start_idx:end_idx]
+                df.loc[start_idx:end_idx - 1, col] = batch.apply(
+                    lambda x: translate_text(str(x), translator) if pd.notnull(x) and isinstance(x, str) else x
+                )
+        output = BytesIO()
+        df.to_csv(output, index=False, encoding="utf-8")
+        return output.getvalue()
+    except Exception as e:
+        st.error(f"Error processing CSV: {str(e)}")
         return None
-    batch_size = 100
-    for col in df.select_dtypes(include=["object"]).columns:
-        for i in range(0, len(df), batch_size):
-            batch = df[col][i:i+batch_size]
-            df[col][i:i+batch_size] = batch.apply(
-                lambda x: translate_text(str(x), translator) if pd.notnull(x) else x
-            )
-    output = BytesIO()
-    df.to_csv(output, index=False, encoding="utf-8")
-    return output.getvalue()
 
-# Process uploaded file
+# Process uploaded file with improved translation detection
 if file and st.button("Translate Now!"):
     with st.spinner("Translating your file..."):
         try:
@@ -260,12 +278,30 @@ if file and st.button("Translate Now!"):
                 mime = "text/csv"
 
             if output:
-                # Check if translation failed and original text was returned
-                if isinstance(output, bytes) and any(b == ord(t) for b, t in zip(output, file.read())):
+                translation_occurred = True
+                if file_ext in ["xlsx", "csv"]:
+                    file.seek(0)
+                    original_df = pd.read_excel(file) if file_ext == "xlsx" else pd.read_csv(file)
+                    output_io = BytesIO(output)
+                    translated_df = pd.read_excel(output_io) if file_ext == "xlsx" else pd.read_csv(output_io)
+                    # Check if any string column changed
+                    for col in original_df.columns:
+                        if original_df[col].dtype == "object":
+                            if not original_df[col].equals(translated_df[col]):
+                                translation_occurred = True
+                                break
+                            else:
+                                translation_occurred = False
+                elif file_ext in ["txt", "pdf"]:
+                    file.seek(0)
+                    if output == file.read():
+                        translation_occurred = False
+
+                if not translation_occurred:
                     st.success("Returning original file due to translation failure. See warnings above.")
                 else:
                     st.success("Translation complete!")
-                file.seek(0)  # Reset file pointer for download
+                file.seek(0)
                 st.download_button(
                     label="Download Translated File",
                     data=output,
