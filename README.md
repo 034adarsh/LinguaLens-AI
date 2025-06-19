@@ -28,7 +28,7 @@ Welcome to **LinguaLens AI Translator**, a powerful and user-friendly web applic
 ### Installation
 
 ```bash
-git clone https://github.com/034adarsh/LinguaLens-Backend.git
+git clone https://github.com/034adarsh/LinguaLens-AI.git
 cd LinguaLens-Backend
 ```
 
